@@ -60,7 +60,7 @@ echo ""
 
 # Make all scripts executable
 print_step "Making all scripts executable..."
-find /workspace/Email -name "*.sh" -type f -exec chmod +x {} \;
+find "$(pwd)" -name "*.sh" -type f -exec chmod +x {} \;
 print_success "All scripts are now executable"
 
 # Check for dependencies
@@ -74,8 +74,13 @@ fi
 print_header "Starting Complete Mail System Setup"
 print_step "Launching setup-complete-mail-system.sh..."
 
-# Execute the main setup script
-/workspace/Email/setup-complete-mail-system.sh
+# Execute the non-interactive setup script
+if [ -f "$(pwd)/setup-noninteractive.sh" ]; then
+    "$(pwd)/setup-noninteractive.sh"
+else
+    print_warning "Non-interactive setup script not found, falling back to interactive setup"
+    "$(pwd)/setup-complete-mail-system.sh"
+fi
 
 # Final message
 print_header "Setup Complete!"
