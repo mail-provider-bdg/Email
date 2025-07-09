@@ -15,9 +15,9 @@ PURPLE='\033[0;35m'
 NC='\033[0m' # No Color
 
 # Configuration - Edit these before running
-DOMAIN="bdgsoftware.com"
-MAIL_DOMAIN="mail.bdgsoftware.com"
-ADMIN_EMAIL="admin@bdgsoftware.com"
+DOMAIN="bdgsoftware.mooo.com"
+MAIL_DOMAIN="mail.bdgsoftware.mooo.com"
+ADMIN_EMAIL="admin@bdgsoftware.mooo.com"
 SERVER_IP=$(curl -s https://ipinfo.io/ip)
 WEBMAIL_PORT="8080"
 
