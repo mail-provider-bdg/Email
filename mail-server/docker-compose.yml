@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # Main mail server with Postfix and Dovecot
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail.bdgsoftware.com
+    env_file: mailserver.env
+    ports:
+      - "25:25"     # SMTP
+      - "143:143"   # IMAP
+      - "465:465"   # SMTPS
+      - "587:587"   # Submission
+      - "993:993"   # IMAPS
+    volumes:
+      - ./docker-data/dms/mail-data/:/var/mail/
+      - ./docker-data/dms/mail-state/:/var/mail-state/
+      - ./docker-data/dms/mail-logs/:/var/log/mail/
+      - ./docker-data/dms/config/:/tmp/docker-mailserver/
+      - /etc/localtime:/etc/localtime:ro
+      - ./certs/:/etc/letsencrypt/:ro
+    restart: always
+    stop_grace_period: 1m
+    cap_add:
+      - NET_ADMIN
+    healthcheck:
+      test: "ss -lntp | grep -E ':25|:465|:587|:993|:143'"
+      timeout: 45s
+      interval: 30s
+      retries: 3
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: mail-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - ./docker-data/redis:/data
+
+  # Fail2ban for security
+  fail2ban:
+    image: crazymax/fail2ban:latest
+    container_name: mail-fail2ban
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ./docker-data/dms/mail-logs/:/var/log/mail/:ro
+      - ./docker-data/fail2ban:/data
+      - /var/log:/var/log:ro
+    restart: always
+
+  # Optional: Webmail admin interface
+  postfixadmin:
+    image: postfixadmin:latest
+    container_name: postfixadmin
+    ports:
+      - "8080:80"
+    environment:
+      - POSTFIXADMIN_DB_TYPE=sqlite
+      - POSTFIXADMIN_DB_HOST=sqlite:/data/postfixadmin.db
+    volumes:
+      - ./docker-data/postfixadmin:/data
+    restart: always
+
+  # Certificate management with Let's Encrypt
+  certbot:
+    image: certbot/certbot
+    container_name: mail-certbot
+    volumes:
+      - ./certs:/etc/letsencrypt
+      - ./certbot-webroot:/var/www/certbot
+    command: certonly --webroot --webroot-path=/var/www/certbot --email admin@bdgsoftware.com --agree-tos --no-eff-email -d mail.bdgsoftware.com
+    depends_on:
+      - nginx
+
+  # Nginx for web-based certificate verification
+  nginx:
+    image: nginx:alpine
+    container_name: mail-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certbot-webroot:/var/www/certbot:ro
+    restart: always

@@ -235,7 +235,19 @@ html.touch {
 
 .btn {
     &:focus {
-        box-shadow: 0 0 0 .2rem fade(@color-btn-primary-background, 30%);
+        box-shadow: 0 0 0 .2rem fade(@color-btn-primary-focus, 30%);
+    }
+}
+
+.btn-secondary {
+    &:focus {
+        box-shadow: 0 0 0 .2rem fade(@color-btn-secondary-focus, 30%);
+    }
+}
+
+.btn-danger {
+    &:focus {
+        box-shadow: 0 0 0 .2rem fade(@color-btn-danger-focus, 30%);
     }
 }
 

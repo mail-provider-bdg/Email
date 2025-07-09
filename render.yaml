@@ -1,0 +1,89 @@
+services:
+  # Web service for Roundcube webmail
+  - type: web
+    name: roundcube-webmail
+    env: php
+    plan: starter
+    buildCommand: |
+      # Install PHP dependencies
+      composer install --no-dev --optimize-autoloader
+      
+      # Create necessary directories
+      mkdir -p temp logs
+      chmod 755 temp logs
+      
+      # Create config file from environment variables
+      cp config/config.inc.php.sample config/config.inc.php
+      
+      # Set up database if needed
+      if [ ! -f temp/db_initialized ]; then
+        # Initialize database schema
+        php -f bin/initdb.sh --dir=./
+        touch temp/db_initialized
+      fi
+    startCommand: |
+      # Start PHP built-in server pointing to public_html
+      php -S 0.0.0.0:$PORT -t public_html
+    envVars:
+      # Database configuration
+      - key: DB_HOST
+        fromDatabase:
+          name: roundcube-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: roundcube-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: roundcube-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: roundcube-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: roundcube-db
+          property: password
+      
+      # Mail server configuration (you'll need to configure these)
+      - key: IMAP_HOST
+        value: your-imap-server.com:993
+      - key: SMTP_HOST
+        value: your-smtp-server.com:587
+      - key: SMTP_USER
+        value: %u
+      - key: SMTP_PASS
+        value: %p
+      
+      # Application configuration
+      - key: DES_KEY
+        generateValue: true
+        length: 24
+      - key: PRODUCT_NAME
+        value: Roundcube Webmail
+      - key: SUPPORT_URL
+        value: https://your-support-url.com
+      - key: SKIN
+        value: elastic
+      
+      # PHP configuration
+      - key: PHP_INI_SCAN_DIR
+        value: /app/php-ini
+      - key: DOCUMENT_ROOT
+        value: /app/public_html
+
+  # PostgreSQL database for Roundcube
+  - type: pgsql
+    name: roundcube-db
+    plan: free
+    databaseName: roundcube
+    databaseUser: roundcube
+    ipAllowList: []
+
+# Optional: Redis for session storage and caching
+  - type: redis
+    name: roundcube-redis
+    plan: free
+    ipAllowList: []
