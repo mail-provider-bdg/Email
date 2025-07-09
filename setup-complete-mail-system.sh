@@ -53,7 +53,7 @@ fi
 
 print_header "Complete Mail System Setup for $DOMAIN"
 echo "This script will install and configure:"
-echo "• Native mail server (Postfix + Dovecot)"
+echo "• Mail server (Postfix + Dovecot)"
 echo "• Roundcube webmail with purple theme"
 echo "• Security components (SpamAssassin, ClamAV, Fail2ban)"
 echo "• SSL certificates"
@@ -65,7 +65,26 @@ echo "Mail server: $MAIL_DOMAIN"
 echo "Server IP: $SERVER_IP"
 echo "Webmail will be available at: http://$SERVER_IP:$WEBMAIL_PORT"
 echo ""
-read -p "Continue with installation? (y/N): " -n 1 -r
+echo -e "${BLUE}📦 Installation Method:${NC}"
+echo "1. Native installation (direct on Ubuntu/Debian)"
+echo "2. Docker installation (containerized)"
+echo ""
+read -p "Choose installation method (1 or 2): " -n 1 -r
+echo ""
+INSTALL_METHOD=$REPLY
+
+if [[ $INSTALL_METHOD == "1" ]]; then
+    INSTALL_TYPE="native"
+    echo -e "${GREEN}✅ Selected: Native installation${NC}"
+elif [[ $INSTALL_METHOD == "2" ]]; then
+    INSTALL_TYPE="docker"
+    echo -e "${GREEN}✅ Selected: Docker installation${NC}"
+else
+    print_error "Invalid selection. Exiting."
+    exit 1
+fi
+echo ""
+read -p "Continue with $INSTALL_TYPE installation? (y/N): " -n 1 -r
 echo ""
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 0
@@ -73,30 +92,107 @@ fi
 
 # Step 1: Install Mail Server
 print_header "Step 1: Installing Mail Server"
-print_step "Running native mail server installation..."
 
-cd mail-server-native
-chmod +x *.sh
-
-# Run mail server installation
-print_step "Installing base mail server components..."
-./install.sh
-
-print_step "Configuring Dovecot..."
-./configure-dovecot.sh
-
-print_step "Setting up DKIM..."
-./configure-dkim.sh
-
-print_step "Configuring security components..."
-./configure-security.sh
-
-print_step "Creating initial email accounts..."
-./setup-initial-accounts.sh
-
-cd ..
-
-print_success "Mail server installation completed!"
+if [[ $INSTALL_TYPE == "native" ]]; then
+    print_step "Running native mail server installation..."
+    
+    cd mail-server-native
+    chmod +x *.sh
+    
+    # Run mail server installation
+    print_step "Installing base mail server components..."
+    ./install.sh
+    
+    print_step "Configuring Dovecot..."
+    ./configure-dovecot.sh
+    
+    print_step "Setting up DKIM..."
+    ./configure-dkim.sh
+    
+    print_step "Configuring security components..."
+    ./configure-security.sh
+    
+    print_step "Creating initial email accounts..."
+    ./setup-initial-accounts.sh
+    
+    cd ..
+    
+    print_success "Native mail server installation completed!"
+    
+elif [[ $INSTALL_TYPE == "docker" ]]; then
+    print_step "Running Docker mail server installation..."
+    
+    # Install Docker if not present
+    if ! command -v docker &> /dev/null; then
+        print_step "Installing Docker..."
+        apt update
+        apt install -y ca-certificates curl gnupg lsb-release
+        
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+        
+        apt update
+        apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+        
+        systemctl start docker
+        systemctl enable docker
+        
+        print_success "Docker installed successfully!"
+    fi
+    
+    # Install Docker Compose if not present
+    if ! command -v docker-compose &> /dev/null; then
+        print_step "Installing Docker Compose..."
+        curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
+        print_success "Docker Compose installed successfully!"
+    fi
+    
+    cd mail-server
+    
+    # Update configuration
+    print_step "Configuring Docker mail server..."
+    
+    # Update mailserver.env with current domain
+    sed -i "s/HOSTNAME=.*/HOSTNAME=$MAIL_DOMAIN/" mailserver.env
+    sed -i "s/DOMAINNAME=.*/DOMAINNAME=$DOMAIN/" mailserver.env
+    sed -i "s/POSTMASTER_ADDRESS=.*/POSTMASTER_ADDRESS=postmaster@$DOMAIN/" mailserver.env
+    
+    # Update SSL paths
+    sed -i "s|SSL_CERT_PATH=.*|SSL_CERT_PATH=/etc/letsencrypt/live/$MAIL_DOMAIN/fullchain.pem|" mailserver.env
+    sed -i "s|SSL_KEY_PATH=.*|SSL_KEY_PATH=/etc/letsencrypt/live/$MAIL_DOMAIN/privkey.pem|" mailserver.env
+    
+    # Start Docker services
+    print_step "Starting Docker mail server..."
+    docker-compose up -d
+    
+    # Wait for services to start
+    print_step "Waiting for services to initialize..."
+    sleep 30
+    
+    # Create email accounts
+    print_step "Creating email accounts..."
+    docker-compose exec mailserver setup email add $ADMIN_EMAIL
+    docker-compose exec mailserver setup email add info@$DOMAIN
+    docker-compose exec mailserver setup email add support@$DOMAIN
+    docker-compose exec mailserver setup email add sales@$DOMAIN
+    docker-compose exec mailserver setup email add noreply@$DOMAIN
+    
+    # Create aliases
+    docker-compose exec mailserver setup alias add postmaster@$DOMAIN $ADMIN_EMAIL
+    docker-compose exec mailserver setup alias add abuse@$DOMAIN $ADMIN_EMAIL
+    docker-compose exec mailserver setup alias add hostmaster@$DOMAIN $ADMIN_EMAIL
+    
+    # Generate DKIM keys
+    print_step "Generating DKIM keys..."
+    docker-compose exec mailserver setup config dkim domain $DOMAIN
+    
+    cd ..
+    
+    print_success "Docker mail server installation completed!"
+fi
 
 # Step 2: Install Roundcube
 print_header "Step 2: Installing Roundcube Webmail"
@@ -334,10 +430,29 @@ print_success "Firewall configuration completed!"
 # Step 7: Test Installation
 print_header "Step 7: Testing Installation"
 
-print_step "Running mail server tests..."
-cd mail-server-native
-./test-mail-server.sh
-cd ..
+if [[ $INSTALL_TYPE == "native" ]]; then
+    print_step "Running native mail server tests..."
+    cd mail-server-native
+    ./test-mail-server.sh
+    cd ..
+elif [[ $INSTALL_TYPE == "docker" ]]; then
+    print_step "Running Docker mail server tests..."
+    cd mail-server
+    
+    # Test Docker services
+    print_step "Checking Docker services..."
+    if docker-compose ps | grep -q "Up"; then
+        print_success "Docker services are running"
+    else
+        print_warning "Some Docker services may not be running"
+    fi
+    
+    # Test mail server connectivity
+    print_step "Testing mail server connectivity..."
+    docker-compose exec mailserver ss -tlnp | grep -E ':25|:465|:587|:993|:143' && print_success "Mail ports are open" || print_warning "Mail ports may not be accessible"
+    
+    cd ..
+fi
 
 print_step "Testing Roundcube installation..."
 if curl -s --connect-timeout 5 "http://localhost:$WEBMAIL_PORT" > /dev/null; then
@@ -349,27 +464,28 @@ fi
 # Step 8: Create additional user accounts
 print_header "Step 8: Creating Additional User Accounts"
 
-print_step "Creating user accounts for common addresses..."
-cd mail-server-native
-
-# Create additional accounts with random passwords
-SALES_PASSWORD=$(openssl rand -base64 16)
-NOREPLY_PASSWORD=$(openssl rand -base64 16)
-MARKETING_PASSWORD=$(openssl rand -base64 16)
-
-./manage-users.sh add "sales@$DOMAIN" "$SALES_PASSWORD"
-./manage-users.sh add "marketing@$DOMAIN" "$MARKETING_PASSWORD"
-./manage-users.sh add "no-reply@$DOMAIN" "$NOREPLY_PASSWORD"
-
-# Create additional aliases
-./manage-users.sh alias "orders@$DOMAIN" "sales@$DOMAIN"
-./manage-users.sh alias "billing@$DOMAIN" "admin@$DOMAIN"
-./manage-users.sh alias "security@$DOMAIN" "admin@$DOMAIN"
-
-cd ..
-
-# Save additional passwords
-cat >> /root/email_passwords.txt << EOF
+if [[ $INSTALL_TYPE == "native" ]]; then
+    print_step "Creating user accounts for common addresses..."
+    cd mail-server-native
+    
+    # Create additional accounts with random passwords
+    SALES_PASSWORD=$(openssl rand -base64 16)
+    NOREPLY_PASSWORD=$(openssl rand -base64 16)
+    MARKETING_PASSWORD=$(openssl rand -base64 16)
+    
+    ./manage-users.sh add "sales@$DOMAIN" "$SALES_PASSWORD"
+    ./manage-users.sh add "marketing@$DOMAIN" "$MARKETING_PASSWORD"
+    ./manage-users.sh add "no-reply@$DOMAIN" "$NOREPLY_PASSWORD"
+    
+    # Create additional aliases
+    ./manage-users.sh alias "orders@$DOMAIN" "sales@$DOMAIN"
+    ./manage-users.sh alias "billing@$DOMAIN" "admin@$DOMAIN"
+    ./manage-users.sh alias "security@$DOMAIN" "admin@$DOMAIN"
+    
+    cd ..
+    
+    # Save additional passwords
+    cat >> /root/email_passwords.txt << EOF
 
 Additional Accounts:
 sales@$DOMAIN: $SALES_PASSWORD
@@ -381,6 +497,41 @@ orders@$DOMAIN -> sales@$DOMAIN
 billing@$DOMAIN -> admin@$DOMAIN
 security@$DOMAIN -> admin@$DOMAIN
 EOF
+
+elif [[ $INSTALL_TYPE == "docker" ]]; then
+    print_step "Creating additional Docker email accounts..."
+    cd mail-server
+    
+    # Create additional accounts with random passwords
+    SALES_PASSWORD=$(openssl rand -base64 16)
+    NOREPLY_PASSWORD=$(openssl rand -base64 16)
+    MARKETING_PASSWORD=$(openssl rand -base64 16)
+    
+    docker-compose exec mailserver setup email add "sales@$DOMAIN" "$SALES_PASSWORD"
+    docker-compose exec mailserver setup email add "marketing@$DOMAIN" "$MARKETING_PASSWORD"
+    docker-compose exec mailserver setup email add "no-reply@$DOMAIN" "$NOREPLY_PASSWORD"
+    
+    # Create additional aliases
+    docker-compose exec mailserver setup alias add "orders@$DOMAIN" "sales@$DOMAIN"
+    docker-compose exec mailserver setup alias add "billing@$DOMAIN" "admin@$DOMAIN"
+    docker-compose exec mailserver setup alias add "security@$DOMAIN" "admin@$DOMAIN"
+    
+    cd ..
+    
+    # Save additional passwords
+    cat >> /root/email_passwords.txt << EOF
+
+Additional Accounts:
+sales@$DOMAIN: $SALES_PASSWORD
+marketing@$DOMAIN: $MARKETING_PASSWORD
+no-reply@$DOMAIN: $NOREPLY_PASSWORD
+
+Additional Aliases:
+orders@$DOMAIN -> sales@$DOMAIN
+billing@$DOMAIN -> admin@$DOMAIN
+security@$DOMAIN -> admin@$DOMAIN
+EOF
+fi
 
 print_success "Additional accounts created!"
 
@@ -407,17 +558,32 @@ echo "• Database passwords: /root/mysql_passwords.txt"
 echo "• Roundcube config: $WEBROOT/config/config.inc.php"
 echo ""
 echo -e "${BLUE}🚀 Next Steps:${NC}"
-echo "1. Configure DNS records for $DOMAIN (see mail-server-native/DNS-RECORDS.md)"
-echo "2. Add DKIM record to DNS:"
-echo "   Host: mail._domainkey.$DOMAIN"
-echo "   Value: (see output above or /etc/opendkim/keys/$DOMAIN/mail.txt)"
+if [[ $INSTALL_TYPE == "native" ]]; then
+    echo "1. Configure DNS records for $DOMAIN (see mail-server-native/DNS-RECORDS.md)"
+    echo "2. Add DKIM record to DNS:"
+    echo "   Host: mail._domainkey.$DOMAIN"
+    echo "   Value: (see output above or /etc/opendkim/keys/$DOMAIN/mail.txt)"
+elif [[ $INSTALL_TYPE == "docker" ]]; then
+    echo "1. Configure DNS records for $DOMAIN (see mail-server/DNS-RECORDS.md)"
+    echo "2. Add DKIM record to DNS:"
+    echo "   Host: mail._domainkey.$DOMAIN"
+    echo "   Value: (run: cd mail-server && ./docker-mail-management.sh dkim)"
+fi
 echo "3. Test email sending/receiving"
 echo "4. Access webmail at http://$SERVER_IP:$WEBMAIL_PORT"
 echo ""
 echo -e "${BLUE}🛠️ Management Commands:${NC}"
-echo "• Add user: cd mail-server-native && ./manage-users.sh add email@$DOMAIN password"
-echo "• List users: cd mail-server-native && ./manage-users.sh list"
-echo "• Test system: cd mail-server-native && ./test-mail-server.sh"
+if [[ $INSTALL_TYPE == "native" ]]; then
+    echo "• Add user: cd mail-server-native && ./manage-users.sh add email@$DOMAIN password"
+    echo "• List users: cd mail-server-native && ./manage-users.sh list"
+    echo "• Test system: cd mail-server-native && ./test-mail-server.sh"
+elif [[ $INSTALL_TYPE == "docker" ]]; then
+    echo "• Add user: cd mail-server && ./docker-mail-management.sh add email@$DOMAIN password"
+    echo "• List users: cd mail-server && ./docker-mail-management.sh list"
+    echo "• Test system: cd mail-server && ./docker-mail-management.sh status"
+    echo "• Restart services: cd mail-server && ./docker-mail-management.sh restart"
+    echo "• View logs: cd mail-server && ./docker-mail-management.sh logs"
+fi
 echo ""
 echo -e "${YELLOW}⚠️  Security Notes:${NC}"
 echo "• Change default passwords immediately"
