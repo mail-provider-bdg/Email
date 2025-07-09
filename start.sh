@@ -7,6 +7,9 @@
 # Set strict error handling
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -60,7 +63,7 @@ echo ""
 
 # Make all scripts executable
 print_step "Making all scripts executable..."
-find /workspace/Email -name "*.sh" -type f -exec chmod +x {} \;
+find "$SCRIPT_DIR" -name "*.sh" -type f -exec chmod +x {} \;
 print_success "All scripts are now executable"
 
 # Check for dependencies
@@ -74,8 +77,13 @@ fi
 print_header "Starting Complete Mail System Setup"
 print_step "Launching setup-complete-mail-system.sh..."
 
-# Execute the main setup script
-/workspace/Email/setup-complete-mail-system.sh
+# Execute the non-interactive setup script
+if [ -f "$SCRIPT_DIR/setup-noninteractive.sh" ]; then
+    "$SCRIPT_DIR/setup-noninteractive.sh"
+else
+    print_warning "Non-interactive setup script not found, falling back to interactive setup"
+    "$SCRIPT_DIR/setup-complete-mail-system.sh"
+fi
 
 # Final message
 print_header "Setup Complete!"
