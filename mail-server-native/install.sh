@@ -13,9 +13,9 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-DOMAIN="bdgsoftware.com"
-MAIL_DOMAIN="mail.bdgsoftware.com"
-ADMIN_EMAIL="admin@bdgsoftware.com"
+DOMAIN="bdgsoftware.cloud"
+MAIL_DOMAIN="mail.bdgsoftware.cloud"
+ADMIN_EMAIL="admin@bdgsoftware.cloud"
 MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
 ROUNDCUBE_DB_PASSWORD=$(openssl rand -base64 32)
 POSTFIX_DB_PASSWORD=$(openssl rand -base64 32)

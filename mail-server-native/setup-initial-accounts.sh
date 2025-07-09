@@ -3,7 +3,7 @@
 # Initial Account Setup Script
 set -e
 
-DOMAIN="bdgsoftware.com"
+DOMAIN="bdgsoftware.cloud"
 ADMIN_PASSWORD=$(openssl rand -base64 16)
 SUPPORT_PASSWORD=$(openssl rand -base64 16)
 INFO_PASSWORD=$(openssl rand -base64 16)

@@ -3,7 +3,7 @@
 # User Management Script
 set -e
 
-DOMAIN="bdgsoftware.com"
+DOMAIN="bdgsoftware.cloud"
 MYSQL_ROOT_PASSWORD=$(grep "MySQL root password:" /root/mysql_passwords.txt | cut -d' ' -f4)
 
 # Function to generate password hash
