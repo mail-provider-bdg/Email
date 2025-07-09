@@ -219,30 +219,44 @@ apt install -y \
 # Create web directory
 WEBROOT="/var/www/roundcube"
 mkdir -p $WEBROOT
+
+# Get the current directory (where the repo was cloned)
+REPO_DIR=$(pwd)
+
+# Use the modified Roundcube from the repository
+print_step "Installing your custom Roundcube with purple theme..."
+
+# Copy all Roundcube files from the repository to web directory
+print_step "Copying Roundcube files from repository..."
+cp -r $REPO_DIR/* $WEBROOT/
+cp -r $REPO_DIR/.??* $WEBROOT/ 2>/dev/null || true  # Copy hidden files if they exist
+
+# Navigate to web directory
 cd $WEBROOT
 
-# Download Roundcube
-print_step "Downloading Roundcube..."
-ROUNDCUBE_VERSION="1.6.4"
-wget -q "https://github.com/roundcube/roundcubemail/releases/download/$ROUNDCUBE_VERSION/roundcubemail-$ROUNDCUBE_VERSION-complete.tar.gz"
-tar -xzf "roundcubemail-$ROUNDCUBE_VERSION-complete.tar.gz"
-mv "roundcubemail-$ROUNDCUBE_VERSION"/* .
-rm -rf "roundcubemail-$ROUNDCUBE_VERSION" "roundcubemail-$ROUNDCUBE_VERSION-complete.tar.gz"
-
-# Install dependencies
+# Install/update dependencies
 print_step "Installing Roundcube dependencies..."
 composer install --no-dev --optimize-autoloader
 
-# Set permissions
+# Create necessary directories if they don't exist
+mkdir -p temp logs
+mkdir -p public_html
+
+# Set proper permissions
+print_step "Setting proper permissions..."
 chown -R www-data:www-data $WEBROOT
 find $WEBROOT -type d -exec chmod 755 {} \;
 find $WEBROOT -type f -exec chmod 644 {} \;
 chmod -R 777 $WEBROOT/temp $WEBROOT/logs
 
-# Copy our purple theme
-print_step "Installing purple theme..."
-cp -r skins/elastic/* $WEBROOT/skins/elastic/
-chown -R www-data:www-data $WEBROOT/skins/elastic/
+# Ensure the purple theme is properly set
+print_step "Verifying purple theme installation..."
+if [ -d "$WEBROOT/skins/elastic" ]; then
+    print_success "Purple theme found and installed!"
+    chown -R www-data:www-data $WEBROOT/skins/elastic/
+else
+    print_warning "Purple theme directory not found - check repository structure"
+fi
 
 # Step 3: Configure Roundcube Database
 print_header "Step 3: Configuring Roundcube Database"
@@ -403,6 +417,13 @@ if ! grep -q "Listen $WEBMAIL_PORT" /etc/apache2/ports.conf; then
     echo "Listen $WEBMAIL_PORT" >> /etc/apache2/ports.conf
 fi
 
+# Set correct document root for public_html if it exists
+if [ -d "$WEBROOT/public_html" ]; then
+    print_step "Using public_html as document root..."
+    sed -i "s|DocumentRoot $WEBROOT|DocumentRoot $WEBROOT/public_html|" /etc/apache2/sites-available/roundcube.conf
+    sed -i "s|<Directory $WEBROOT>|<Directory $WEBROOT/public_html>|" /etc/apache2/sites-available/roundcube.conf
+fi
+
 # Enable required Apache modules
 a2enmod rewrite
 a2enmod headers
@@ -544,10 +565,12 @@ echo -e "${BLUE}📧 Mail Server Details:${NC}"
 echo "• Domain: $DOMAIN"
 echo "• Mail server: $MAIL_DOMAIN"
 echo "• Server IP: $SERVER_IP"
+echo "• Installation Type: $INSTALL_TYPE"
 echo ""
 echo -e "${BLUE}🌐 Webmail Access:${NC}"
 echo "• URL: http://$SERVER_IP:$WEBMAIL_PORT"
-echo "• Theme: Beautiful purple theme"
+echo "• Theme: Your custom purple theme from repository"
+echo "• Features: All your UI modifications included"
 echo ""
 echo -e "${BLUE}📋 Email Accounts Created:${NC}"
 cat /root/email_passwords.txt
