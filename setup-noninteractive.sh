@@ -6,6 +6,9 @@
 
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -85,7 +88,7 @@ print_header "Step 1: Installing Mail Server"
 if [[ $INSTALL_TYPE == "native" ]]; then
     print_step "Running native mail server installation..."
     
-    cd mail-server-native
+    cd "$SCRIPT_DIR/mail-server-native"
     
     # Run mail server installation
     print_step "Installing base mail server components..."
@@ -142,7 +145,7 @@ elif [[ $INSTALL_TYPE == "docker" ]]; then
         print_success "Docker Compose installed successfully!"
     fi
     
-    cd mail-server
+    cd "$SCRIPT_DIR/mail-server"
     
     # Update configuration
     print_step "Configuring Docker mail server..."
@@ -230,7 +233,7 @@ WEBROOT="/var/www/roundcube"
 mkdir -p $WEBROOT
 
 # Get the current directory (where the repo was cloned)
-REPO_DIR=$(pwd)
+REPO_DIR="$SCRIPT_DIR"
 
 # Use the modified Roundcube from the repository
 print_step "Installing your custom Roundcube with purple theme..."
