@@ -58,7 +58,7 @@ services:
     image: postfixadmin:latest
     container_name: postfixadmin
     ports:
-      - "8080:80"
+      - "8081:80"  # Changed from 8080 to 8081 to avoid conflict with Roundcube
     environment:
       - POSTFIXADMIN_DB_TYPE=sqlite
       - POSTFIXADMIN_DB_HOST=sqlite:/data/postfixadmin.db
