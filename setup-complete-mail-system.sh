@@ -15,9 +15,9 @@ PURPLE='\033[0;35m'
 NC='\033[0m' # No Color
 
 # Configuration - Edit these before running
-DOMAIN="bdgsoftware.mooo.com"
-MAIL_DOMAIN="mail.bdgsoftware.mooo.com"
-ADMIN_EMAIL="admin@bdgsoftware.mooo.com"
+DOMAIN="bdgsoftware.cloud"
+MAIL_DOMAIN="mail.bdgsoftware.cloud"
+ADMIN_EMAIL="admin@bdgsoftware.cloud"
 SERVER_IP=$(curl -s https://ipinfo.io/ip)
 WEBMAIL_PORT="8080"
 
@@ -115,6 +115,9 @@ if [[ $INSTALL_TYPE == "native" ]]; then
     print_step "Creating initial email accounts..."
     ./setup-initial-accounts.sh
     
+    print_step "Configuring email forwarding to admin..."
+    ./configure-email-forwarding.sh
+    
     cd ..
     
     print_success "Native mail server installation completed!"
@@ -188,6 +191,10 @@ elif [[ $INSTALL_TYPE == "docker" ]]; then
     # Generate DKIM keys
     print_step "Generating DKIM keys..."
     docker-compose exec mailserver setup config dkim domain $DOMAIN
+    
+    # Configure email forwarding
+    print_step "Configuring email forwarding to admin..."
+    ./configure-docker-forwarding.sh
     
     cd ..
     
@@ -276,6 +283,22 @@ EOF
 print_step "Importing Roundcube database schema..."
 mysql -u root -p"$MYSQL_ROOT_PASSWORD" roundcube < $WEBROOT/SQL/mysql.initial.sql
 
+# Create account registration tables
+print_step "Creating account registration tables..."
+mysql -u root -p"$MYSQL_ROOT_PASSWORD" roundcube << 'EOF'
+CREATE TABLE IF NOT EXISTS account_registrations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    recovery_email VARCHAR(255) NOT NULL,
+    verification_token VARCHAR(255),
+    status ENUM('pending', 'active', 'disabled') NOT NULL DEFAULT 'pending',
+    created DATETIME NOT NULL,
+    ip VARCHAR(45) NOT NULL,
+    last_login DATETIME NULL
+);
+EOF
+
 # Save database password
 echo "Roundcube database password: $ROUNDCUBE_DB_PASSWORD" >> /root/mysql_passwords.txt
 
@@ -310,7 +333,7 @@ cat > $WEBROOT/config/config.inc.php << EOF
 
 // Application settings
 \$config['product_name'] = 'BDG Software Mail';
-\$config['support_url'] = 'https://support.bdgsoftware.com';
+\$config['support_url'] = 'https://support.bdgsoftware.cloud';
 \$config['des_key'] = '$(openssl rand -base64 24)';
 \$config['skin'] = 'elastic';
 
@@ -353,6 +376,7 @@ cat > $WEBROOT/config/config.inc.php << EOF
     'vcard_attachments',
     'password',
     'managesieve',
+    'account_registration',
 );
 
 // Logging
@@ -365,7 +389,7 @@ cat > $WEBROOT/config/config.inc.php << EOF
     'name' => '%n',
     'email' => '%u',
     'reply-to' => '%u',
-    'signature' => "Sent with BDG Software Mail\\nhttps://bdgsoftware.com"
+    'signature' => "Sent with BDG Software Mail\\nhttps://bdgsoftware.cloud"
 );
 
 // Disable installer

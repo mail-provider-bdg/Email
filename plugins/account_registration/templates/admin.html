@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title><roundcube:object name="pagetitle" /></title>
+    <roundcube:include file="/includes/links.html" />
+</head>
+<body class="task-settings">
+
+<roundcube:include file="/includes/header.html" />
+
+<div id="mainscreen" class="offset">
+    <roundcube:include file="/includes/settingstabs.html" />
+    
+    <div id="settings-right" class="uibox contentbox">
+        <div class="boxtitle">
+            <roundcube:label name="account_registration.account_management" />
+        </div>
+        
+        <div class="boxcontent">
+            <roundcube:object name="admin_form" id="admin-form" />
+        </div>
+    </div>
+</div>
+
+<roundcube:include file="/includes/footer.html" />
+
+</body>
+</html>

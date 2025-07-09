@@ -3,7 +3,7 @@
 # Docker Mail Server Management Script
 set -e
 
-DOMAIN="bdgsoftware.com"
+DOMAIN="bdgsoftware.cloud"
 
 # Function to add user
 add_user() {

@@ -5,7 +5,7 @@ services:
   mailserver:
     image: ghcr.io/docker-mailserver/docker-mailserver:latest
     container_name: mailserver
-    hostname: mail.bdgsoftware.com
+    hostname: mail.bdgsoftware.cloud
     env_file: mailserver.env
     ports:
       - "25:25"     # SMTP
@@ -73,7 +73,7 @@ services:
     volumes:
       - ./certs:/etc/letsencrypt
       - ./certbot-webroot:/var/www/certbot
-    command: certonly --webroot --webroot-path=/var/www/certbot --email admin@bdgsoftware.com --agree-tos --no-eff-email -d mail.bdgsoftware.com
+    command: certonly --webroot --webroot-path=/var/www/certbot --email admin@bdgsoftware.cloud --agree-tos --no-eff-email -d mail.bdgsoftware.cloud
     depends_on:
       - nginx
 
